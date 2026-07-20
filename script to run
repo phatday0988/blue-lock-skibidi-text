@@ -1,0 +1,437 @@
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local Camera = Workspace.CurrentCamera
+
+StarterGui:SetCore("SendNotification", {
+    Title = "like and subscribe",
+    Text = "script made by @grbphat",
+    Duration = 15
+})
+
+if PlayerGui:FindFirstChild("BallSafeControlGui") then 
+    PlayerGui.BallSafeControlGui:Destroy() 
+end
+
+_G.StopBallControlLoop = true
+task.wait(0.1)
+_G.StopBallControlLoop = false
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BallSafeControlGui"
+ScreenGui.Parent = PlayerGui
+ScreenGui.ResetOnSpawn = false
+
+-- Tăng chiều cao MainFrame lên 305 để chứa vừa 2 nút mới
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 150, 0, 305)
+MainFrame.Position = UDim2.new(0.5, -75, 0.25, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Parent = ScreenGui
+
+Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 8)
+
+local ToggleGuiBtn = Instance.new("TextButton")
+ToggleGuiBtn.Name = "ToggleGuiBtn"
+ToggleGuiBtn.Size = UDim2.new(0, 45, 0, 45)
+ToggleGuiBtn.Position = UDim2.new(0.1, 0, 0.2, 0)
+ToggleGuiBtn.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+ToggleGuiBtn.BorderSizePixel = 0
+ToggleGuiBtn.Text = "⚽"
+ToggleGuiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleGuiBtn.Font = Enum.Font.GothamBold
+ToggleGuiBtn.TextSize = 20
+ToggleGuiBtn.ZIndex = 10
+ToggleGuiBtn.Active = true
+ToggleGuiBtn.Parent = ScreenGui
+
+Instance.new("UICorner", ToggleGuiBtn).CornerRadius = UDim.new(1, 0)
+
+local ToggleLockDragBtn = Instance.new("TextButton")
+ToggleLockDragBtn.Name = "ToggleLockDragBtn"
+ToggleLockDragBtn.Size = UDim2.new(0, 45, 0, 45)
+ToggleLockDragBtn.Position = UDim2.new(0.1, 50, 0.2, 0)
+ToggleLockDragBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+ToggleLockDragBtn.BorderSizePixel = 0
+ToggleLockDragBtn.Text = "🖐️"
+ToggleLockDragBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleLockDragBtn.Font = Enum.Font.GothamBold
+ToggleLockDragBtn.TextSize = 20
+ToggleLockDragBtn.ZIndex = 10
+ToggleLockDragBtn.Active = true
+ToggleLockDragBtn.Parent = ScreenGui
+
+Instance.new("UICorner", ToggleLockDragBtn).CornerRadius = UDim.new(1, 0)
+
+local currentSpeed = 1.5 
+local currentDirection = Vector3.new(0, 0, 0)
+local cameraLocked = false
+local isPressing = false
+local autoMagnet = false
+local canDrag = true
+
+-- CFrame của hai khung thành
+local HOME_CFRAME = CFrame.new(-234.62793, 7.59349489, 0.00855016708, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+local AWAY_CFRAME = CFrame.new(235.237091, 7.59349489, 0.00855016708, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+
+local function makeDraggable(guiObject)
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    local function update(input)
+        if not canDrag then return end
+        local delta = input.Position - dragStart
+        local targetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        TweenService:Create(guiObject, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = targetPos}):Play()
+    end
+
+    guiObject.InputBegan:Connect(function(input)
+        if not canDrag then return end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = guiObject.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    guiObject.InputChanged:Connect(function(input)
+        if not canDrag then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if input == dragInput and dragging and canDrag then
+            update(input)
+        end
+    end)
+end
+
+makeDraggable(MainFrame)
+makeDraggable(ToggleGuiBtn)
+makeDraggable(ToggleLockDragBtn)
+
+ToggleGuiBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+ToggleLockDragBtn.MouseButton1Click:Connect(function()
+    canDrag = not canDrag
+    if canDrag then
+        ToggleLockDragBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+    else
+        ToggleLockDragBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+    end
+end)
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 25)
+Title.BackgroundColor3 = Color3.fromRGB(30, 40, 60)
+Title.Text = "Blue lock: skibidi panel"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 10
+Title.Parent = MainFrame
+
+Instance.new("UICorner", Title).CornerRadius = UDim.new(0, 8)
+
+local SpeedLabel = Instance.new("TextLabel")
+SpeedLabel.Size = UDim2.new(1, 0, 0, 20)
+SpeedLabel.Position = UDim2.new(0, 0, 0, 27)
+SpeedLabel.BackgroundTransparency = 1
+SpeedLabel.Text = "Speed: " .. math.floor(currentSpeed * 10)
+SpeedLabel.TextColor3 = Color3.fromRGB(0, 255, 150)
+SpeedLabel.Font = Enum.Font.GothamBold
+SpeedLabel.TextSize = 10
+SpeedLabel.Parent = MainFrame
+
+local cachedBall = nil
+local lastScan = 0
+
+local function GetBall()
+    if cachedBall and cachedBall.Parent and cachedBall:IsA("BasePart") then
+        return cachedBall
+    end
+    
+    local now = os.clock()
+    if now - lastScan < 0.5 then
+        return nil
+    end
+    lastScan = now
+    
+    for _, obj in pairs(Workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and (obj.Name:lower() == "ball" or obj.Name:lower():find("football") or obj.Name:lower():find("soccer")) then
+            cachedBall = obj
+            return obj
+        end
+    end
+    
+    local fallback = Workspace:FindFirstChild("Ball")
+    if fallback and fallback:IsA("BasePart") then
+        cachedBall = fallback
+        return fallback
+    end
+    
+    return nil
+end
+
+local function IsBallHeld(ball)
+    if not ball then return false end
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local root = p.Character:FindFirstChild("HumanoidRootPart")
+            if root and (ball.Position - root.Position).Magnitude < 3.5 then
+                return true
+            end
+        end
+    end
+    if ball:FindFirstChildOfClass("Weld") or ball:FindFirstChildOfClass("WeldConstraint") or ball:FindFirstChildOfClass("Motor6D") then
+        return true
+    end
+    return false
+end
+
+task.spawn(function()
+    while not _G.StopBallControlLoop do
+        RunService.Heartbeat:Wait() 
+        local ball = GetBall()
+        local character = LocalPlayer.Character
+        local root = character and character:FindFirstChild("HumanoidRootPart")
+        
+        if ball and root then
+            if cameraLocked then
+                Camera.CameraType = Enum.CameraType.Custom
+                if Camera.CameraSubject ~= ball then
+                    Camera.CameraSubject = ball
+                end
+            end
+
+            local heldByOther = IsBallHeld(ball)
+
+            if autoMagnet and not heldByOther then
+                pcall(function()
+                    ball.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    ball.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                    ball.CFrame = root.CFrame * CFrame.new(0, 0, -3)
+                end)
+                
+                if firetouchinterest then
+                    local leg = character:FindFirstChild("Left Leg") or character:FindFirstChild("Right Leg") or character:FindFirstChild("LeftLowerLeg") or character:FindFirstChild("RightLowerLeg") or root
+                    if leg then
+                        firetouchinterest(leg, ball, 0)
+                        firetouchinterest(leg, ball, 1)
+                    end
+                end
+                task.wait(0.05)
+            elseif isPressing and currentDirection ~= Vector3.new(0,0,0) and not heldByOther then
+                local camCFrame = Camera.CFrame
+                local moveVector = Vector3.new(0,0,0)
+                if currentDirection.Z ~= 0 then moveVector = moveVector + (camCFrame.LookVector * -currentDirection.Z) end
+                if currentDirection.X ~= 0 then moveVector = moveVector + (camCFrame.RightVector * currentDirection.X) end
+                if currentDirection.Y ~= 0 then moveVector = moveVector + Vector3.new(0, currentDirection.Y, 0) end
+
+                if moveVector.Magnitude > 0 then
+                    pcall(function()
+                        ball.AssemblyLinearVelocity = moveVector.Unit * (currentSpeed * 25)
+                    end)
+                end
+            end
+        else
+            if cameraLocked and character and character:FindFirstChild("Humanoid") then
+                cameraLocked = false
+                Camera.CameraSubject = character.Humanoid
+            end
+        end
+    end
+end)
+
+local function createDriveButton(text, pos, dirVec)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 32, 0, 32)
+    btn.Position = pos
+    btn.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.Parent = MainFrame
+    
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    btn.MouseButton1Down:Connect(function()
+        if autoMagnet then return end
+        btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+        currentDirection = dirVec
+        isPressing = true
+    end)
+    btn.MouseButton1Up:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(55, 55, 65)
+        isPressing = false
+    end)
+end
+
+createDriveButton("🔼", UDim2.new(0, 59, 0, 50), Vector3.new(0, 0, -1))
+createDriveButton("🔽", UDim2.new(0, 59, 0, 118), Vector3.new(0, 0, 1))
+createDriveButton("◀️", UDim2.new(0, 23, 0, 84), Vector3.new(-1, 0, 0))
+createDriveButton("▶️", UDim2.new(0, 95, 0, 84), Vector3.new(1, 0, 0))
+createDriveButton("⬆️", UDim2.new(0, 23, 0, 154), Vector3.new(0, 1, 0))
+createDriveButton("⬇️", UDim2.new(0, 95, 0, 154), Vector3.new(0, -1, 0))
+
+local SpeedUp = Instance.new("TextButton")
+SpeedUp.Size = UDim2.new(0, 32, 0, 32)
+SpeedUp.Position = UDim2.new(0, 5, 0, 50)
+SpeedUp.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+SpeedUp.Text = "+"
+SpeedUp.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedUp.Font = Enum.Font.GothamBold
+SpeedUp.TextSize = 14
+SpeedUp.Parent = MainFrame
+Instance.new("UICorner", SpeedUp).CornerRadius = UDim.new(0, 6)
+SpeedUp.MouseButton1Click:Connect(function()
+    currentSpeed = currentSpeed + 0.3
+    SpeedLabel.Text = "Speed: " .. math.floor(currentSpeed * 10)
+end)
+
+local SpeedDown = Instance.new("TextButton")
+SpeedDown.Size = UDim2.new(0, 32, 0, 32)
+SpeedDown.Position = UDim2.new(0, 5, 0, 118)
+SpeedDown.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+SpeedDown.Text = "-"
+SpeedDown.TextColor3 = Color3.fromRGB(255, 255, 255)
+SpeedDown.Font = Enum.Font.GothamBold
+SpeedDown.TextSize = 14
+SpeedDown.Parent = MainFrame
+Instance.new("UICorner", SpeedDown).CornerRadius = UDim.new(0, 6)
+SpeedDown.MouseButton1Click:Connect(function()
+    if currentSpeed > 0.4 then
+        currentSpeed = currentSpeed - 0.3
+        SpeedLabel.Text = "Speed: " .. math.floor(currentSpeed * 10)
+    end
+end)
+
+local CamLockBtn = Instance.new("TextButton")
+CamLockBtn.Size = UDim2.new(0, 32, 0, 32)
+CamLockBtn.Position = UDim2.new(0, 59, 0, 84)
+CamLockBtn.BackgroundColor3 = Color3.fromRGB(230, 126, 34)
+CamLockBtn.Text = "CAM"
+CamLockBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+CamLockBtn.Font = Enum.Font.GothamBold
+CamLockBtn.TextSize = 8
+CamLockBtn.Parent = MainFrame
+Instance.new("UICorner", CamLockBtn).CornerRadius = UDim.new(0, 6)
+
+CamLockBtn.MouseButton1Click:Connect(function()
+    cameraLocked = not cameraLocked
+    if cameraLocked then
+        CamLockBtn.BackgroundColor3 = Color3.fromRGB(142, 68, 173)
+        CamLockBtn.Text = "LOCK"
+    else
+        CamLockBtn.BackgroundColor3 = Color3.fromRGB(230, 126, 34)
+        CamLockBtn.Text = "CAM"
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+            Camera.CameraSubject = LocalPlayer.Character.Humanoid
+        end
+    end
+end)
+
+local TpBallBtn = Instance.new("TextButton")
+TpBallBtn.Size = UDim2.new(0, 140, 0, 25)
+TpBallBtn.Position = UDim2.new(0.5, -70, 0, 192)
+TpBallBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+TpBallBtn.Text = "⚡ TP BALL TO FEET ⚡"
+TpBallBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TpBallBtn.Font = Enum.Font.GothamBold
+TpBallBtn.TextSize = 9
+TpBallBtn.Parent = MainFrame
+Instance.new("UICorner", TpBallBtn).CornerRadius = UDim.new(0, 6)
+
+TpBallBtn.MouseButton1Click:Connect(function()
+    local ball = GetBall()
+    local character = LocalPlayer.Character
+    local root = character and character:FindFirstChild("HumanoidRootPart")
+    if ball and root and not IsBallHeld(ball) then
+        ball.CFrame = root.CFrame * CFrame.new(0, 0, -3)
+    end
+end)
+
+-- --- CÁC NÚT MỚI THÊM VÀO --- --
+
+-- Nút Teleport bóng tới khung thành HOME
+local TpHomeBtn = Instance.new("TextButton")
+TpHomeBtn.Size = UDim2.new(0, 67, 0, 25)
+TpHomeBtn.Position = UDim2.new(0, 5, 0, 222)
+TpHomeBtn.BackgroundColor3 = Color3.fromRGB(155, 89, 182)
+TpHomeBtn.Text = "🏠 HOME"
+TpHomeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TpHomeBtn.Font = Enum.Font.GothamBold
+TpHomeBtn.TextSize = 9
+TpHomeBtn.Parent = MainFrame
+Instance.new("UICorner", TpHomeBtn).CornerRadius = UDim.new(0, 6)
+
+TpHomeBtn.MouseButton1Click:Connect(function()
+    local ball = GetBall()
+    if ball and not IsBallHeld(ball) then
+        ball.CFrame = HOME_CFRAME
+    end
+end)
+
+-- Nút Teleport bóng tới khung thành AWAY
+local TpAwayBtn = Instance.new("TextButton")
+TpAwayBtn.Size = UDim2.new(0, 67, 0, 25)
+TpAwayBtn.Position = UDim2.new(0, 78, 0, 222)
+TpAwayBtn.BackgroundColor3 = Color3.fromRGB(230, 126, 34)
+TpAwayBtn.Text = "✈️ AWAY"
+TpAwayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+TpAwayBtn.Font = Enum.Font.GothamBold
+TpAwayBtn.TextSize = 9
+TpAwayBtn.Parent = MainFrame
+Instance.new("UICorner", TpAwayBtn).CornerRadius = UDim.new(0, 6)
+
+TpAwayBtn.MouseButton1Click:Connect(function()
+    local ball = GetBall()
+    if ball and not IsBallHeld(ball) then
+        ball.CFrame = AWAY_CFRAME
+    end
+end)
+
+-- Nút Tắt/Mở Loop Magnet
+local ToggleMagnetBtn = Instance.new("TextButton")
+ToggleMagnetBtn.Size = UDim2.new(0, 140, 0, 25)
+ToggleMagnetBtn.Position = UDim2.new(0.5, -70, 0, 252)
+ToggleMagnetBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+ToggleMagnetBtn.Text = "LOOP MAGNET: OFF"
+ToggleMagnetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleMagnetBtn.Font = Enum.Font.GothamBold
+ToggleMagnetBtn.TextSize = 9
+ToggleMagnetBtn.Parent = MainFrame
+Instance.new("UICorner", ToggleMagnetBtn).CornerRadius = UDim.new(0, 6)
+
+ToggleMagnetBtn.MouseButton1Click:Connect(function()
+    autoMagnet = not autoMagnet
+    if autoMagnet then
+        ToggleMagnetBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+        ToggleMagnetBtn.Text = "LOOP MAGNET: ON"
+    else
+        ToggleMagnetBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+        ToggleMagnetBtn.Text = "LOOP MAGNET: OFF"
+        local ball = GetBall()
+        if ball then
+            ball.CanCollide = true
+        end
+    end
+end)
