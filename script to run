@@ -30,7 +30,7 @@ ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 150, 0, 320) -- Tăng chiều cao để chứa ô nhập tên
+MainFrame.Size = UDim2.new(0, 150, 0, 320)
 MainFrame.Position = UDim2.new(0.5, -75, 0.2, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
@@ -77,6 +77,8 @@ local cameraLocked = false
 local isPressing = false
 local autoMagnet = false
 local canDrag = true
+local isPassLocking = false
+local currentTargetPlayer = nil
 
 local HOME_CFRAME = CFrame.new(-234.62793, 7.59349489, 0.00855016708, 1, 0, 0, 0, 1, 0, 0, 0, 1)
 local AWAY_CFRAME = CFrame.new(235.237091, 7.59349489, 0.00855016708, 1, 0, 0, 0, 1, 0, 0, 0, 1)
@@ -220,7 +222,6 @@ local function GetPlayerTeamName()
     return ""
 end
 
--- Hàm tìm người chơi theo tên (hoặc một phần tên)
 local function GetPlayerByName(name)
     if not name or name == "" then return nil end
     local lowerName = name:lower()
@@ -234,14 +235,16 @@ local function GetPlayerByName(name)
     return nil
 end
 
+-- Vòng lặp chính điều khiển bóng
 task.spawn(function()
     while not _G.StopBallControlLoop do
-        RunService.Heartbeat:Wait() 
+        RunService.PreSimulation:Wait() 
         local ball = GetBall()
         local character = LocalPlayer.Character
         local root = character and character:FindFirstChild("HumanoidRootPart")
         
-        if ball and root then
+        if ball then
+            -- Xử lý Camera Lock
             if cameraLocked then
                 Camera.CameraType = Enum.CameraType.Custom
                 if Camera.CameraSubject ~= ball then
@@ -249,12 +252,21 @@ task.spawn(function()
                 end
             end
 
-            local heldByOther = IsBallHeld(ball)
-
-            if autoMagnet and not heldByOther then
+            -- Ưu tiên 1: PASS LOCK (Khóa & Teleport bóng liên tục đến người chơi)
+            if isPassLocking and currentTargetPlayer and currentTargetPlayer.Character then
+                local tRoot = currentTargetPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if tRoot then
+                    pcall(function()
+                        ball.AssemblyLinearVelocity = Vector3.zero
+                        ball.AssemblyAngularVelocity = Vector3.zero
+                        ball.CFrame = tRoot.CFrame * CFrame.new(0, 0, -2.5)
+                    end)
+                end
+            -- Ưu tiên 2: LOOP MAGNET (Hút bóng về bản thân)
+            elseif autoMagnet and root and not IsBallHeld(ball) then
                 pcall(function()
-                    ball.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                    ball.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                    ball.AssemblyLinearVelocity = Vector3.zero
+                    ball.AssemblyAngularVelocity = Vector3.zero
                     ball.CFrame = root.CFrame * CFrame.new(0, 0, -3)
                 end)
                 
@@ -265,10 +277,10 @@ task.spawn(function()
                         firetouchinterest(leg, ball, 1)
                     end
                 end
-                task.wait(0.05)
-            elseif isPressing and currentDirection ~= Vector3.new(0,0,0) and not heldByOther then
+            -- Ưu tiên 3: Điều khiển hướng bằng các nút mũi tên
+            elseif isPressing and currentDirection ~= Vector3.zero and not IsBallHeld(ball) then
                 local camCFrame = Camera.CFrame
-                local moveVector = Vector3.new(0,0,0)
+                local moveVector = Vector3.zero
                 if currentDirection.Z ~= 0 then moveVector = moveVector + (camCFrame.LookVector * -currentDirection.Z) end
                 if currentDirection.X ~= 0 then moveVector = moveVector + (camCFrame.RightVector * currentDirection.X) end
                 if currentDirection.Y ~= 0 then moveVector = moveVector + Vector3.new(0, currentDirection.Y, 0) end
@@ -301,7 +313,7 @@ local function createDriveButton(text, pos, dirVec)
     
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     btn.MouseButton1Down:Connect(function()
-        if autoMagnet then return end
+        if autoMagnet or isPassLocking then return end
         btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
         currentDirection = dirVec
         isPressing = true
@@ -391,12 +403,12 @@ TargetNameInput.ClearTextOnFocus = false
 TargetNameInput.Parent = MainFrame
 Instance.new("UICorner", TargetNameInput).CornerRadius = UDim.new(0, 5)
 
--- NÚT INSTANT PASS BẰNG TELEPORT
+-- NÚT BẬT/TẮT TP PASS LOCK
 local PassBtn = Instance.new("TextButton")
 PassBtn.Size = UDim2.new(0, 140, 0, 22)
 PassBtn.Position = UDim2.new(0.5, -70, 0, 216)
 PassBtn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
-PassBtn.Text = "⚽ INSTANT PASS ⚽"
+PassBtn.Text = "⚽ TELE PASS: OFF ⚽"
 PassBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 PassBtn.Font = Enum.Font.GothamBold
 PassBtn.TextSize = 8.5
@@ -404,22 +416,26 @@ PassBtn.Parent = MainFrame
 Instance.new("UICorner", PassBtn).CornerRadius = UDim.new(0, 5)
 
 PassBtn.MouseButton1Click:Connect(function()
-    local targetPlayer = GetPlayerByName(TargetNameInput.Text)
-    if targetPlayer and targetPlayer.Character then
-        local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local ball = GetBall()
-        if targetRoot and ball then
-            -- Dịch chuyển bóng tức thời đến ngay trước mặt người chơi được chọn
-            ball.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            ball.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-            ball.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -2.5)
-        end
+    if isPassLocking then
+        isPassLocking = false
+        currentTargetPlayer = nil
+        PassBtn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+        PassBtn.Text = "⚽ TELE PASS: OFF ⚽"
     else
-        StarterGui:SetCore("SendNotification", {
-            Title = "Pass Error",
-            Text = "Player not found!",
-            Duration = 3
-        })
+        local target = GetPlayerByName(TargetNameInput.Text)
+        if target then
+            currentTargetPlayer = target
+            isPassLocking = true
+            autoMagnet = false -- Tắt Magnet cá nhân để tránh bị xung đột
+            PassBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+            PassBtn.Text = "⚽ TELE PASS: ON ⚽"
+        else
+            StarterGui:SetCore("SendNotification", {
+                Title = "Pass Error",
+                Text = "Player not found!",
+                Duration = 3
+            })
+        end
     end
 end)
 
@@ -464,14 +480,13 @@ Instance.new("UICorner", ToggleMagnetBtn).CornerRadius = UDim.new(0, 5)
 ToggleMagnetBtn.MouseButton1Click:Connect(function()
     autoMagnet = not autoMagnet
     if autoMagnet then
+        isPassLocking = false -- Tắt Tele Pass nếu bật Magnet
+        PassBtn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+        PassBtn.Text = "⚽ TELE PASS: OFF ⚽"
         ToggleMagnetBtn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
         ToggleMagnetBtn.Text = "LOOP MAGNET: ON"
     else
         ToggleMagnetBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
         ToggleMagnetBtn.Text = "LOOP MAGNET: OFF"
-        local ball = GetBall()
-        if ball then
-            ball.CanCollide = true
-        end
     end
 end)
