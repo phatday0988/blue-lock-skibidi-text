@@ -28,10 +28,9 @@ ScreenGui.Name = "BallSafeControlGui"
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 
--- Điều chỉnh kích thước MainFrame nhỏ gọn hơn (chiều cao còn 260px)
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 150, 0, 260)
+MainFrame.Size = UDim2.new(0, 150, 0, 320) -- Tăng chiều cao để chứa ô nhập tên
 MainFrame.Position = UDim2.new(0.5, -75, 0.2, 0)
 MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 MainFrame.BorderSizePixel = 0
@@ -79,7 +78,6 @@ local isPressing = false
 local autoMagnet = false
 local canDrag = true
 
--- Tọa độ CFrame của khung thành
 local HOME_CFRAME = CFrame.new(-234.62793, 7.59349489, 0.00855016708, 1, 0, 0, 0, 1, 0, 0, 0, 1)
 local AWAY_CFRAME = CFrame.new(235.237091, 7.59349489, 0.00855016708, 1, 0, 0, 0, 1, 0, 0, 0, 1)
 
@@ -207,7 +205,6 @@ local function IsBallHeld(ball)
     return false
 end
 
--- Hàm kiểm tra Team trên Leaderboard
 local function GetPlayerTeamName()
     if LocalPlayer.Team then
         return LocalPlayer.Team.Name:lower()
@@ -221,6 +218,20 @@ local function GetPlayerTeamName()
         end
     end
     return ""
+end
+
+-- Hàm tìm người chơi theo tên (hoặc một phần tên)
+local function GetPlayerByName(name)
+    if not name or name == "" then return nil end
+    local lowerName = name:lower()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            if p.Name:lower():find(lowerName) or p.DisplayName:lower():find(lowerName) then
+                return p
+            end
+        end
+    end
+    return nil
 end
 
 task.spawn(function()
@@ -365,17 +376,64 @@ CamLockBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- NÚT AUTO GOAL (SÚT THẲNG VÀO KHUNG THÀNH ĐỐI PHƯƠNG)
+-- Ô NHẬP TÊN NGƯỜI CHƠI ĐỂ PASS
+local TargetNameInput = Instance.new("TextBox")
+TargetNameInput.Size = UDim2.new(0, 140, 0, 22)
+TargetNameInput.Position = UDim2.new(0.5, -70, 0, 190)
+TargetNameInput.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+TargetNameInput.PlaceholderText = "Type player name..."
+TargetNameInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+TargetNameInput.Text = ""
+TargetNameInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+TargetNameInput.Font = Enum.Font.Gotham
+TargetNameInput.TextSize = 9
+TargetNameInput.ClearTextOnFocus = false
+TargetNameInput.Parent = MainFrame
+Instance.new("UICorner", TargetNameInput).CornerRadius = UDim.new(0, 5)
+
+-- NÚT INSTANT PASS BẰNG TELEPORT
+local PassBtn = Instance.new("TextButton")
+PassBtn.Size = UDim2.new(0, 140, 0, 22)
+PassBtn.Position = UDim2.new(0.5, -70, 0, 216)
+PassBtn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+PassBtn.Text = "⚽ INSTANT PASS ⚽"
+PassBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+PassBtn.Font = Enum.Font.GothamBold
+PassBtn.TextSize = 8.5
+PassBtn.Parent = MainFrame
+Instance.new("UICorner", PassBtn).CornerRadius = UDim.new(0, 5)
+
+PassBtn.MouseButton1Click:Connect(function()
+    local targetPlayer = GetPlayerByName(TargetNameInput.Text)
+    if targetPlayer and targetPlayer.Character then
+        local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+        local ball = GetBall()
+        if targetRoot and ball then
+            -- Dịch chuyển bóng tức thời đến ngay trước mặt người chơi được chọn
+            ball.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            ball.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            ball.CFrame = targetRoot.CFrame * CFrame.new(0, 0, -2.5)
+        end
+    else
+        StarterGui:SetCore("SendNotification", {
+            Title = "Pass Error",
+            Text = "Player not found!",
+            Duration = 3
+        })
+    end
+end)
+
+-- NÚT AUTO GOAL
 local AutoGoalBtn = Instance.new("TextButton")
-AutoGoalBtn.Size = UDim2.new(0, 140, 0, 25)
-AutoGoalBtn.Position = UDim2.new(0.5, -70, 0, 192)
+AutoGoalBtn.Size = UDim2.new(0, 140, 0, 22)
+AutoGoalBtn.Position = UDim2.new(0.5, -70, 0, 242)
 AutoGoalBtn.BackgroundColor3 = Color3.fromRGB(241, 196, 15)
 AutoGoalBtn.Text = "⚡ AUTO GOAL (TEAM) ⚡"
 AutoGoalBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
 AutoGoalBtn.Font = Enum.Font.GothamBold
-AutoGoalBtn.TextSize = 9
+AutoGoalBtn.TextSize = 8.5
 AutoGoalBtn.Parent = MainFrame
-Instance.new("UICorner", AutoGoalBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", AutoGoalBtn).CornerRadius = UDim.new(0, 5)
 
 AutoGoalBtn.MouseButton1Click:Connect(function()
     local ball = GetBall()
@@ -393,15 +451,15 @@ end)
 
 -- NÚT TẮT/MỞ LOOP MAGNET
 local ToggleMagnetBtn = Instance.new("TextButton")
-ToggleMagnetBtn.Size = UDim2.new(0, 140, 0, 25)
-ToggleMagnetBtn.Position = UDim2.new(0.5, -70, 0, 222)
+ToggleMagnetBtn.Size = UDim2.new(0, 140, 0, 22)
+ToggleMagnetBtn.Position = UDim2.new(0.5, -70, 0, 268)
 ToggleMagnetBtn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
 ToggleMagnetBtn.Text = "LOOP MAGNET: OFF"
 ToggleMagnetBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleMagnetBtn.Font = Enum.Font.GothamBold
-ToggleMagnetBtn.TextSize = 9
+ToggleMagnetBtn.TextSize = 8.5
 ToggleMagnetBtn.Parent = MainFrame
-Instance.new("UICorner", ToggleMagnetBtn).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", ToggleMagnetBtn).CornerRadius = UDim.new(0, 5)
 
 ToggleMagnetBtn.MouseButton1Click:Connect(function()
     autoMagnet = not autoMagnet
